@@ -1527,8 +1527,7 @@ p {
       <a class="welcome-whatsapp"
          href="https://wa.me/5491171518085?text=Hola%20AyudaSoporte%2C%20tengo%20una%20duda%2C%20reclamo%20o%20inconveniente%20y%20necesito%20orientaci%C3%B3n."
          target="_blank"
-         rel="noopener noreferrer"
-         data-close-welcome>
+         rel="noopener noreferrer">
 
         <svg aria-hidden="true">
           <use href="#wa"/>
@@ -1588,40 +1587,76 @@ p {
 
 
   /* ==========================================
-     VENTANA MODAL AUTOMÁTICA
+     MODAL PERSISTENTE DURANTE 20 MINUTOS
+     - No desaparece al pulsar WhatsApp.
+     - Sigue apareciendo al regresar o recargar.
+     - Los 20 minutos se cuentan desde la primera visita
+       en esta pestaña, sin reiniciar el contador.
+     - Después se cierra y no vuelve a mostrarse
+       en la misma sesión de la pestaña.
   ========================================== */
 
   const welcomeModal = document.getElementById('welcomeModal');
+  const TIEMPO_MODAL = 20 * 60 * 1000; // 20 minutos
+  const CLAVE_INICIO = 'ayudasoporte_modal_inicio_20m_v1';
+  let temporizadorModal;
 
-  // Mostrar automáticamente al cargar la página
-  if (typeof welcomeModal.showModal === 'function') {
-    welcomeModal.showModal();
-    document.body.classList.add('modal-open');
+  // Guardar el momento de la primera apertura en la sesión de esta pestaña.
+  let inicioModal = Number(sessionStorage.getItem(CLAVE_INICIO));
+  if (!inicioModal || inicioModal > Date.now()) {
+    inicioModal = Date.now();
+    sessionStorage.setItem(CLAVE_INICIO, String(inicioModal));
   }
 
-  // Función para cerrar la ventana
   function cerrarModal() {
     if (welcomeModal.open) {
       welcomeModal.close();
     }
+    document.body.classList.remove('modal-open');
+    clearTimeout(temporizadorModal);
   }
 
-  // Restaurar desplazamiento al cerrar
+  function actualizarModal() {
+    const restante = TIEMPO_MODAL - (Date.now() - inicioModal);
+
+    clearTimeout(temporizadorModal);
+
+    if (restante <= 0) {
+      cerrarModal();
+      return;
+    }
+
+    // Mantener la ventana abierta durante los 20 minutos.
+    if (!welcomeModal.open && typeof welcomeModal.showModal === 'function') {
+      welcomeModal.showModal();
+    }
+    document.body.classList.add('modal-open');
+
+    // Programar solo el tiempo que falta, no 20 minutos nuevos.
+    temporizadorModal = setTimeout(actualizarModal, restante);
+  }
+
+  // Evitar que la tecla Escape cierre la modal antes de tiempo.
+  welcomeModal.addEventListener('cancel', (evento) => {
+    if (Date.now() - inicioModal < TIEMPO_MODAL) {
+      evento.preventDefault();
+    }
+  });
+
   welcomeModal.addEventListener('close', () => {
     document.body.classList.remove('modal-open');
   });
 
-  // Cerrar mediante X, continuar o WhatsApp
-  document.querySelectorAll('[data-close-welcome]').forEach(elemento => {
-    elemento.addEventListener('click', cerrarModal);
+  // Si volvemos con el botón Atrás o con caché del navegador, comprobar
+  // el mismo plazo original de 20 minutos.
+  window.addEventListener('pageshow', actualizarModal);
+  window.addEventListener('focus', actualizarModal);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) actualizarModal();
   });
 
-  // Cerrar automáticamente después de 4 minutos
-  const TIEMPO_MODAL = 4 * 60 * 1000;
-
-  setTimeout(() => {
-    cerrarModal();
-  }, TIEMPO_MODAL);
+  // Primera apertura.
+  actualizarModal();
 
 </script>
 
